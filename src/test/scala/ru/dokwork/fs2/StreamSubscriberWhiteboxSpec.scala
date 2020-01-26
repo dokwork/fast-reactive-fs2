@@ -2,33 +2,31 @@ package ru.dokwork.fs2
 
 import java.util.concurrent.atomic.AtomicInteger
 
-import cats.implicits._
 import cats.effect.{ ContextShift, IO, Timer }
-import org.reactivestreams.{ Subscriber, Subscription }
+import cats.implicits._
 import org.reactivestreams.tck.SubscriberWhiteboxVerification.{ SubscriberPuppet, WhiteboxSubscriberProbe }
 import org.reactivestreams.tck.{ SubscriberWhiteboxVerification, TestEnvironment }
+import org.reactivestreams.{ Subscriber, Subscription }
 import org.scalatestplus.testng.TestNGSuiteLike
+import ru.dokwork.fs2.StreamSubscriber.StreamSubscriberImpl
 
 import scala.concurrent.ExecutionContext
 
 final class SubscriberWhiteboxSpec
-  extends SubscriberWhiteboxVerification[Int](new TestEnvironment(1000L))
+    extends SubscriberWhiteboxVerification[Int](new TestEnvironment(1000L))
     with TestNGSuiteLike {
-  implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
+  implicit val timer: Timer[IO]      = IO.timer(ExecutionContext.global)
   implicit val ctx: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
 
   private val counter = new AtomicInteger()
 
   def createSubscriber(p: WhiteboxSubscriberProbe[Int]): Subscriber[Int] =
-    StreamSubscriber.create[IO, Int]()
-      .map(new WhiteboxSubscriber(_, p))
-      .unsafeRunSync()
+    new WhiteboxSubscriber(new StreamSubscriberImpl[IO, Int](), p)
 
   def createElement(i: Int): Int = counter.getAndIncrement
 }
 
-class WhiteboxSubscriber[A](sub: StreamSubscriber[IO, A], probe: WhiteboxSubscriberProbe[A])
-  extends Subscriber[A] {
+class WhiteboxSubscriber[A](sub: StreamSubscriberImpl[IO, A], probe: WhiteboxSubscriberProbe[A]) extends Subscriber[A] {
   def onError(t: Throwable): Unit = {
     sub.onError(t)
     probe.registerOnError(t)

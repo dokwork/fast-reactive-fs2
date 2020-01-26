@@ -10,90 +10,78 @@ import org.reactivestreams.{ Publisher, Subscriber, Subscription }
 import scala.collection.mutable
 import scala.concurrent.duration._
 
-trait StreamSubscriber[F[_], A] extends Subscriber[A] {
-  def poll: F[Chunk[A]]
-  def stream: Stream[F, A]
-  def cancel: CancelToken[F]
-}
-
 object StreamSubscriber {
 
   /**
-    * [[ru.dokwork.fs2.StreamSubscriber#create(int, scala.concurrent.duration.FiniteDuration, cats.effect.Sync, cats.effect.Timer) Creates subscriber]]
-    * and subscribes it to the event from the publisher.
+    * Creates subscriber which put every message to the buffer  and subscribes it to the event from the publisher.
+    * This buffer will be pushed to the stream as single chunk. Every polling from
+    * the empty buffer will be paused for `awaitNextTimeout`.
     *
     * @return stream elements from the publisher.
     */
   def subscribe[F[_]: Sync: Timer, A](
       publisher: Publisher[A],
-      chunkSize: Int = 1000,
+      chunkSize: Int = 100,
       awaitNextTimeout: FiniteDuration = 100.millis
   ): Stream[F, A] =
     Stream
-      .eval(create[F, A](chunkSize, awaitNextTimeout))
+      .eval(Sync[F].delay(new StreamSubscriberImpl[F, A](chunkSize, awaitNextTimeout)))
       .evalTap(s => Sync[F].delay(publisher.subscribe(s)))
       .flatMap(_.stream)
 
-  /**
-    * Creates subscriber which put every message to the buffer.
-    * This buffer will be pushed to the stream as single chunk. Every polling from
-    * the empty buffer will be paused for `awaitNextTimeout`.
-    */
-  def create[F[_]: Sync: Timer, A](
-      chunkSize: Int = 1000,
+  private[fs2] final class StreamSubscriberImpl[F[_]: Sync: Timer, A](
+      chunkSize: Int = 100,
       awaitNextTimeout: FiniteDuration = 100.millis
-  ): F[StreamSubscriber[F, A]] =
-    Sync[F].delay(new StreamSubscriber[F, A] {
-      private val queue = new ChunkQueue[A]
-      private val fsm   = new FSM[A](chunkSize)
+  ) extends Subscriber[A] {
+    private val queue = new ChunkQueue[A]
+    private val fsm   = new FSM[A](chunkSize)
 
-      override def onSubscribe(s: Subscription): Unit = neNull(s) {
-        fsm.subscribe(s) match {
-          // cancel new subscription (see spec for reactive streams)
-          case fsm.Subscribed(sub) if s ne sub => s.cancel()
-          case _                               =>
+    override def onSubscribe(s: Subscription): Unit = neNull(s) {
+      fsm.subscribe(s) match {
+        // cancel new subscription (see spec for reactive streams)
+        case fsm.Subscribed(sub) if s ne sub => s.cancel()
+        case _                               =>
+      }
+    }
+    override def onNext(a: A): Unit = neNull(a) { queue.put(a) }
+
+    override def onError(e: Throwable): Unit = neNull(e) { fsm.raise(e) }
+
+    override def onComplete(): Unit = fsm.complete()
+
+    def stream: Stream[F, A] =
+      Stream.eval(poll).repeat.takeWhile(_.nonEmpty).flatMap(Stream.chunk).onFinalize(cancel)
+
+    private[fs2] def poll: F[Chunk[A]] =
+      Sync[F].delay(queue.popAll).flatMap { chunk =>
+        fsm.poll(chunk) match {
+          // poll last chunk
+          case fsm.Completed | fsm.Canceled => Sync[F].pure(chunk)
+          // first request
+          case fsm.Idle(sub) if chunk.isEmpty => Sync[F].delay(sub.request(chunkSize)) >> poll
+          // next request
+          case fsm.Idle(sub) => Sync[F].delay(sub.request(chunkSize)) as chunk
+          // raise error
+          case fsm.Error(e) => Sync[F].raiseError(e)
+          // produce non empty chunk
+          case _ if chunk.nonEmpty => Sync[F].pure(chunk)
+          // queue is empty. wait and retry
+          case _ => Timer[F].sleep(awaitNextTimeout) >> poll
         }
       }
-      override def onNext(a: A): Unit = neNull(a) { queue.put(a) }
 
-      override def onError(e: Throwable): Unit = neNull(e) { fsm.raise(e) }
-
-      override def onComplete(): Unit = fsm.complete()
-
-      private def neNull[R](x: Any)(f: => R): R = if (x equals null) throw new NullPointerException else f
-
-      def poll: F[Chunk[A]] =
-        Sync[F].delay(queue.popAll).flatMap {
-          chunk =>
-            fsm.poll(chunk) match {
-              // poll last chunk
-              case fsm.Completed | fsm.Canceled => Sync[F].pure(chunk)
-              // first request
-              case fsm.Idle(sub) if chunk.isEmpty => Sync[F].delay(sub.request(chunkSize)) >> poll
-              // next request
-              case fsm.Idle(sub) => Sync[F].delay(sub.request(chunkSize)) as chunk
-              // raise error
-              case fsm.Error(e) => Sync[F].raiseError(e)
-              // produce non empty chunk
-              case _ if chunk.nonEmpty => Sync[F].pure(chunk)
-              // queue is empty. wait and retry
-              case _ => Timer[F].sleep(awaitNextTimeout) >> poll
-            }
-        }
-
-      def stream: Stream[F, A] =
-        Stream.eval(poll).repeat.takeWhile(_.nonEmpty).flatMap(Stream.chunk).onFinalize(cancel)
-
-      def cancel: CancelToken[F] = Sync[F].delay {
-        fsm.cancel() match {
-          case fsm.Cancel(sub) => sub.cancel()
-          case _               =>
-        }
+    private[fs2] def cancel: CancelToken[F] = Sync[F].delay {
+      fsm.cancel() match {
+        case fsm.Cancel(sub) => sub.cancel()
+        case _               =>
       }
-    })
+    }
+
+    private def neNull[R](x: Any)(f: => R): R = if (x equals null) throw new NullPointerException else f
+  }
 
   /** Side-effect-free fsm of the subscriber. */
-  private class FSM[A](chunkSize: Int) {
+  private final class FSM[A](chunkSize: Int) {
 
     sealed trait State
     case object Unsubscribed                             extends State
@@ -141,7 +129,7 @@ object StreamSubscriber {
     def nonCompleted: Boolean = ref.get() != Completed
   }
 
-  private class ChunkQueue[A] extends AtomicReference[mutable.Buffer[A]](mutable.Buffer.empty[A]) {
+  private final class ChunkQueue[A] extends AtomicReference[mutable.Buffer[A]](mutable.Buffer.empty[A]) {
     def put(a: A): Unit = updateAndGet(_ += a)
 
     def popAll: Chunk[A] = Chunk.buffer(getAndUpdate(_ => mutable.Buffer.empty[A]))

@@ -3,10 +3,10 @@ package ru.dokwork.fs2
 import java.util.concurrent.atomic.AtomicInteger
 
 import cats.effect._
-import fs2._
 import org.reactivestreams._
 import org.reactivestreams.tck._
 import org.scalatestplus.testng.TestNGSuiteLike
+import ru.dokwork.fs2.StreamSubscriber.StreamSubscriberImpl
 
 import scala.concurrent.ExecutionContext
 
@@ -20,10 +20,9 @@ final class StreamSubscriberBlackboxSpec
 
   def createElement(i: Int): Int = counter.incrementAndGet()
 
-  def createSubscriber(): StreamSubscriber[IO, Int] = StreamSubscriber.create[IO, Int]().unsafeRunSync()
+  def createSubscriber(): StreamSubscriberImpl[IO, Int] =
+    new StreamSubscriberImpl[IO, Int]()
 
-  override def triggerRequest(s: Subscriber[_ >: Int]): Unit = {
-    val req = s.asInstanceOf[StreamSubscriber[IO, Int]].poll
-    (Stream.eval(req)).compile.drain.unsafeRunAsync(_ => ())
-  }
+  override def triggerRequest(s: Subscriber[_ >: Int]): Unit =
+    s.asInstanceOf[StreamSubscriberImpl[IO, Int]].stream.compile.drain.unsafeRunAsync(_ => ())
 }
