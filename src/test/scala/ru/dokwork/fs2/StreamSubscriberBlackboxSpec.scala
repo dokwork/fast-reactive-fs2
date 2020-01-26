@@ -10,7 +10,7 @@ import org.scalatestplus.testng.TestNGSuiteLike
 
 import scala.concurrent.ExecutionContext
 
-final class SubscriberBlackboxSpec
+final class StreamSubscriberBlackboxSpec
     extends SubscriberBlackboxVerification[Int](new TestEnvironment(1000L))
     with TestNGSuiteLike {
   implicit val timer                 = IO.timer(ExecutionContext.global)

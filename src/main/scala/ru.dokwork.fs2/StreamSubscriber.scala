@@ -96,22 +96,14 @@ object StreamSubscriber {
   private class FSM[A](chunkSize: Int) {
 
     sealed trait State
-
-    case object Unsubscribed extends State
-
-    case class Subscribed(sub: Subscription) extends State
-
-    case class Idle(sub: Subscription) extends State
-
+    case object Unsubscribed                             extends State
+    case class Subscribed(sub: Subscription)             extends State
+    case class Idle(sub: Subscription)                   extends State
     case class Await(sub: Subscription, awaitCount: Int) extends State
-
-    case class Error(e: Throwable) extends State
-
-    case class Cancel(sub: Subscription) extends State
-
-    case object Canceled extends State
-
-    case object Completed extends State
+    case class Error(e: Throwable)                       extends State
+    case class Cancel(sub: Subscription)                 extends State
+    case object Canceled                                 extends State
+    case object Completed                                extends State
 
     private val ref = new AtomicReference[State](Unsubscribed)
 
@@ -124,7 +116,7 @@ object StreamSubscriber {
 
     def poll(chunk: Chunk[A]): State = ref.updateAndGet {
       case Subscribed(sub)                                   => Idle(sub)
-      case Idle(sub)                                         => Await(sub, chunkSize)
+      case Idle(sub)                                         => Await(sub, chunkSize - chunk.size)
       case Await(sub, awaitCount) if awaitCount > chunk.size => Await(sub, awaitCount - chunk.size)
       case Await(sub, _)                                     => Idle(sub)
       case other                                             => other
