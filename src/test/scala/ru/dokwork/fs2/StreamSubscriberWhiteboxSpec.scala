@@ -12,7 +12,7 @@ import ru.dokwork.fs2.StreamSubscriber.StreamSubscriberImpl
 
 import scala.concurrent.ExecutionContext
 
-final class SubscriberWhiteboxSpec
+final class StreamSubscriberWhiteboxSpec
     extends SubscriberWhiteboxVerification[Int](new TestEnvironment(1000L))
     with TestNGSuiteLike {
   implicit val timer: Timer[IO]      = IO.timer(ExecutionContext.global)
@@ -24,32 +24,33 @@ final class SubscriberWhiteboxSpec
     new WhiteboxSubscriber(new StreamSubscriberImpl[IO, Int](), p)
 
   def createElement(i: Int): Int = counter.getAndIncrement
-}
 
-class WhiteboxSubscriber[A](sub: StreamSubscriberImpl[IO, A], probe: WhiteboxSubscriberProbe[A]) extends Subscriber[A] {
-  def onError(t: Throwable): Unit = {
-    sub.onError(t)
-    probe.registerOnError(t)
-  }
+  private class WhiteboxSubscriber[A](sub: StreamSubscriberImpl[IO, A], probe: WhiteboxSubscriberProbe[A])
+      extends Subscriber[A] {
+    def onError(t: Throwable): Unit = {
+      sub.onError(t)
+      probe.registerOnError(t)
+    }
 
-  def onSubscribe(s: Subscription): Unit = {
-    sub.onSubscribe(s)
-    probe.registerOnSubscribe(new SubscriberPuppet {
-      override def triggerRequest(elements: Long): Unit =
-        sub.poll.void.unsafeRunAsync(_ => ())
+    def onSubscribe(s: Subscription): Unit = {
+      sub.onSubscribe(s)
+      probe.registerOnSubscribe(new SubscriberPuppet {
+        override def triggerRequest(elements: Long): Unit =
+          sub.poll.void.unsafeRunAsync(_ => ())
 
-      override def signalCancel(): Unit =
-        s.cancel()
-    })
-  }
+        override def signalCancel(): Unit =
+          s.cancel()
+      })
+    }
 
-  def onComplete(): Unit = {
-    sub.onComplete()
-    probe.registerOnComplete()
-  }
+    def onComplete(): Unit = {
+      sub.onComplete()
+      probe.registerOnComplete()
+    }
 
-  def onNext(a: A): Unit = {
-    sub.onNext(a)
-    probe.registerOnNext(a)
+    def onNext(a: A): Unit = {
+      sub.onNext(a)
+      probe.registerOnNext(a)
+    }
   }
 }

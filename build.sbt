@@ -1,7 +1,12 @@
+lazy val scala213 = "2.13.1"
+lazy val scala212 = "2.12.10"
+lazy val scala211 = "2.11.12"
+
 lazy val `fast-reactive-fs2` = (project in file("."))
   .settings(
     organization := "ru.dokwork",
-    scalaVersion := "2.13.1",
+    scalaVersion := scala213,
+    crossScalaVersions := Seq(scala211, scala212, scala213),
     scalacOptions ++= Seq(
       "-encoding",
       "utf-8",
@@ -25,6 +30,6 @@ lazy val `fast-reactive-fs2` = (project in file("."))
     )
   )
   .settings(
-    coverageMinimum := 90,
+    coverageMinimum := 88,
     coverageFailOnMinimum := true
   )

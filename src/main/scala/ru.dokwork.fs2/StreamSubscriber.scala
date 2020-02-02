@@ -1,6 +1,7 @@
 package ru.dokwork.fs2
 
 import java.util.concurrent.atomic.AtomicReference
+import java.util.function.UnaryOperator
 
 import cats.effect.{ CancelToken, Sync, Timer }
 import cats.implicits._
@@ -10,12 +11,25 @@ import org.reactivestreams.{ Publisher, Subscriber, Subscription }
 import scala.collection.mutable
 import scala.concurrent.duration._
 
+trait StreamSubscriber[F[_], A] extends Subscriber[A] {
+  def stream: Stream[F, A]
+}
+
 object StreamSubscriber {
 
   /**
-    * Creates subscriber which put every message to the buffer  and subscribes it to the event from the publisher.
-    * This buffer will be pushed to the stream as single chunk. Every polling from
-    * the empty buffer will be paused for `awaitNextTimeout`.
+    * Creates subscriber which put every message to the buffer.
+    * This buffer will be pushed to the stream as a single chunk.
+    * Every polling from the empty buffer will be paused for `awaitNextTimeout`.
+    */
+  def create[F[_]: Sync: Timer, A](
+      chunkSize: Int = 100,
+      awaitNextTimeout: FiniteDuration = 100.millis
+  ): F[StreamSubscriber[F, A]] = Sync[F].delay(new StreamSubscriberImpl[F, A](chunkSize, awaitNextTimeout))
+
+  /**
+    * [[ru.dokwork.fs2.StreamSubscriber#create(int, scala.concurrent.duration.FiniteDuration, cats.effect.Sync, cats.effect.Timer) Creates subscriber]]
+    *  and subscribes it to the event from the publisher.
     *
     * @return stream elements from the publisher.
     */
@@ -25,14 +39,14 @@ object StreamSubscriber {
       awaitNextTimeout: FiniteDuration = 100.millis
   ): Stream[F, A] =
     Stream
-      .eval(Sync[F].delay(new StreamSubscriberImpl[F, A](chunkSize, awaitNextTimeout)))
+      .eval(create[F, A](chunkSize, awaitNextTimeout))
       .evalTap(s => Sync[F].delay(publisher.subscribe(s)))
       .flatMap(_.stream)
 
   private[fs2] final class StreamSubscriberImpl[F[_]: Sync: Timer, A](
       chunkSize: Int = 100,
       awaitNextTimeout: FiniteDuration = 100.millis
-  ) extends Subscriber[A] {
+  ) extends StreamSubscriber[F, A] {
     private val queue = new ChunkQueue[A]
     private val fsm   = new FSM[A](chunkSize)
 
@@ -95,14 +109,14 @@ object StreamSubscriber {
 
     private val ref = new AtomicReference[State](Unsubscribed)
 
-    def subscribe(sub: Subscription): State = ref.updateAndGet {
+    def subscribe(sub: Subscription): State = updateAndGet {
       case Unsubscribed           => Subscribed(sub)
       case subscribed: Subscribed => subscribed
       case Canceled               => Canceled
       case state                  => Error(new IllegalStateException(s"Unexpected state on `subscribe`: $state"))
     }
 
-    def poll(chunk: Chunk[A]): State = ref.updateAndGet {
+    def poll(chunk: Chunk[A]): State = updateAndGet {
       case Subscribed(sub)                                   => Idle(sub)
       case Idle(sub)                                         => Await(sub, chunkSize - chunk.size)
       case Await(sub, awaitCount) if awaitCount > chunk.size => Await(sub, awaitCount - chunk.size)
@@ -110,9 +124,9 @@ object StreamSubscriber {
       case other                                             => other
     }
 
-    def raise(e: Throwable): State = ref.updateAndGet(_ => Error(e))
+    def raise(e: Throwable): State = updateAndGet(_ => Error(e))
 
-    def cancel(): State = ref.updateAndGet {
+    def cancel(): State = updateAndGet {
       case Subscribed(sub)                           => Cancel(sub)
       case Idle(sub)                                 => Cancel(sub)
       case Await(sub, _)                             => Cancel(sub)
@@ -121,18 +135,25 @@ object StreamSubscriber {
       case other @ (Error(_) | Canceled | Completed) => other
     }
 
-    def complete(): State = ref.updateAndGet {
+    def complete(): State = updateAndGet {
       case error: Error => error
       case _            => Completed
     }
 
     def nonCompleted: Boolean = ref.get() != Completed
+
+    private def updateAndGet(f: State => State): State =
+      ref.updateAndGet(unaryOperator(f))
   }
 
   private final class ChunkQueue[A] extends AtomicReference[mutable.Buffer[A]](mutable.Buffer.empty[A]) {
-    def put(a: A): Unit = updateAndGet(_ += a)
+    // it's not dangerous to update buffer here because it happens sequentially only in the 'OnNext' method
+    def put(a: A): Unit = updateAndGet(unaryOperator(_ += a))
 
-    def popAll: Chunk[A] = Chunk.buffer(getAndUpdate(_ => mutable.Buffer.empty[A]))
+    def popAll: Chunk[A] = Chunk.buffer(getAndUpdate(unaryOperator(_ => mutable.Buffer.empty[A])))
   }
 
+  private def unaryOperator[A](f: A => A) = new UnaryOperator[A] {
+    override def apply(x: A): A = f(x)
+  }
 }
