@@ -28,9 +28,9 @@ object StreamSubscriber {
   ): F[StreamSubscriber[F, A]] = Sync[F].delay(new StreamSubscriberImpl[F, A](chunkSize, awaitNextTimeout))
 
   /**
-    * [[ru.dokwork.fs2.StreamSubscriber#create(int, scala.concurrent.duration.FiniteDuration, cats.effect.Sync, cats.effect.Timer) Creates subscriber]]
-    *  and subscribes it to the event from the publisher.
+    * Creates subscriber and subscribes it to the event from the publisher.
     *
+    * @see ru.dokwork.fs2.StreamSubscriber#create
     * @return stream elements from the publisher.
     */
   def subscribe[F[_]: Sync: Timer, A](

@@ -5,6 +5,7 @@ lazy val scala211 = "2.11.12"
 lazy val `fast-reactive-fs2` = (project in file("."))
   .settings(
     organization := "ru.dokwork",
+    licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
     scalaVersion := scala213,
     crossScalaVersions := Seq(scala211, scala212, scala213),
     scalacOptions ++= Seq(
@@ -27,10 +28,11 @@ lazy val `fast-reactive-fs2` = (project in file("."))
       "org.scalatest"       %% "scalatest"            % "3.1.0"    % "test",
       "org.scalatestplus"   %% "scalatestplus-testng" % "1.0.0-M2" % "test",
       "org.reactivestreams" % "reactive-streams-tck"  % "1.0.3"    % "test"
-    )
+    ),
+    releaseReadmeFile := Some(baseDirectory.value / "README.md")
   )
   .settings(
-    coverageMinimum := 88,
+    coverageMinimum := 85,
     coverageFailOnMinimum := true
   )
 
