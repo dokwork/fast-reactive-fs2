@@ -1,9 +1,9 @@
 # fast-reactive-fs2
 [![Build Status](https://travis-ci.com/dokwork/fasti.svg?branch=master)](https://travis-ci.com/dokwork/fasti)
 [![Coverage Status](https://coveralls.io/repos/github/dokwork/fast-reactive-fs2/badge.svg?branch=master)](https://coveralls.io/github/dokwork/fast-reactive-fs2?branch=master)
- [ ![Download](https://api.bintray.com/packages/dokwork/maven/fast-reactive-fs2/images/download.svg) ](https://bintray.com/dokwork/maven/fast-reactive-fs2/_latestVersion)
+[![Download](https://api.bintray.com/packages/dokwork/maven/fast-reactive-fs2/images/download.svg) ](https://bintray.com/dokwork/maven/fast-reactive-fs2/_latestVersion)
 
-Alternative realization of the reactive streams for fs2. 
+Implementation of the reactive streams for fs2. 
 
 This version is not cross-platform, but faster than official module:
 ```
