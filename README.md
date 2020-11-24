@@ -3,13 +3,13 @@
 [![Coverage Status](https://coveralls.io/repos/github/dokwork/fast-reactive-fs2/badge.svg?branch=master)](https://coveralls.io/github/dokwork/fast-reactive-fs2?branch=master)
  [ ![Download](https://api.bintray.com/packages/dokwork/maven/fast-reactive-fs2/images/download.svg) ](https://bintray.com/dokwork/maven/fast-reactive-fs2/_latestVersion)
 
-Alternative realization of the reactive streams for fs2. 
+Implementation of the reactive streams for fs2. 
 
 This version is not cross-platform, but faster than official module:
 ```
 Benchmark                                      Mode  Cnt      Score      Error  Units
-ReadOneMillionNumbers.dokworkStreamSubscriber  avgt   25     39.377 ±    2.749  ms/op
-ReadOneMillionNumbers.fs2StreamSubscriber      avgt   25  11189.737 ± 2213.225  ms/op
+ReadOneMillionNumbers.dokworkStreamSubscriber  avgt   25    56.017 ±    1.877  ms/op
+ReadOneMillionNumbers.fs2StreamSubscriber      avgt   25  3222.676 ± 1143.118  ms/op
 ```
 
 ## Installation

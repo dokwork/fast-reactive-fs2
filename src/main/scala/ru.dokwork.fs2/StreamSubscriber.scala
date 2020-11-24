@@ -3,12 +3,12 @@ package ru.dokwork.fs2
 import java.util.concurrent.atomic.AtomicReference
 import java.util.function.UnaryOperator
 
-import cats.effect.{ CancelToken, Sync, Timer }
+import cats.effect.{CancelToken, Sync, Timer}
 import cats.implicits._
-import fs2.{ Chunk, Stream }
-import org.reactivestreams.{ Publisher, Subscriber, Subscription }
+import fs2.{Chunk, Stream}
+import org.reactivestreams.{Publisher, Subscriber, Subscription}
 
-import scala.collection.mutable
+import scala.collection.immutable.Queue
 import scala.concurrent.duration._
 
 trait StreamSubscriber[F[_], A] extends Subscriber[A] {
@@ -146,11 +146,10 @@ object StreamSubscriber {
       ref.updateAndGet(unaryOperator(f))
   }
 
-  private final class ChunkQueue[A] extends AtomicReference[mutable.Buffer[A]](mutable.Buffer.empty[A]) {
-    // it's not dangerous to update buffer here because it happens sequentially only in the 'OnNext' method
-    def put(a: A): Unit = updateAndGet(unaryOperator(_ += a))
+  private final class ChunkQueue[A] extends AtomicReference[Queue[A]](Queue.empty[A]) {
+    def put(a: A): Unit = updateAndGet(unaryOperator(_ appended a))
 
-    def popAll: Chunk[A] = Chunk.buffer(getAndUpdate(unaryOperator(_ => mutable.Buffer.empty[A])))
+    def popAll: Chunk[A] = Chunk.seq(getAndUpdate(unaryOperator(_ => Queue.empty[A])))
   }
 
   private def unaryOperator[A](f: A => A) = new UnaryOperator[A] {
