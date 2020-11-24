@@ -91,7 +91,7 @@ object StreamSubscriber {
       }
     }
 
-    private def neNull[R](x: Any)(f: => R): R = if (x equals null) throw new NullPointerException else f
+    private def neNull[R](x: Any)(f: => R): R = if (x == null) throw new NullPointerException else f
   }
 
   /** Side-effect-free fsm of the subscriber. */
@@ -139,8 +139,6 @@ object StreamSubscriber {
       case error: Error => error
       case _            => Completed
     }
-
-    def nonCompleted: Boolean = ref.get() != Completed
 
     private def updateAndGet(f: State => State): State =
       ref.updateAndGet(unaryOperator(f))
