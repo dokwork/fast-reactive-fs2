@@ -13,7 +13,7 @@ ReadOneMillionNumbers.fs2StreamSubscriber      avgt   25  3222.676 ± 1143.118  
 ```
 
 ## Installation
-`libraryDependencies += "ru.dokwork" %% "fast-reactive-fs2" % "0.1.0"`
+`libraryDependencies += "ru.dokwork" %% "fast-reactive-fs2" % "0.1.1"`
 
 ## Usage
 ```scala
