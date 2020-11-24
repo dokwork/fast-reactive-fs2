@@ -8,8 +8,8 @@ Implementation of the reactive streams for fs2.
 This version is not cross-platform, but faster than official module:
 ```
 Benchmark                                      Mode  Cnt      Score      Error  Units
-ReadOneMillionNumbers.dokworkStreamSubscriber  avgt   25     39.377 ±    2.749  ms/op
-ReadOneMillionNumbers.fs2StreamSubscriber      avgt   25  11189.737 ± 2213.225  ms/op
+ReadOneMillionNumbers.dokworkStreamSubscriber  avgt   25    56.017 ±    1.877  ms/op
+ReadOneMillionNumbers.fs2StreamSubscriber      avgt   25  3222.676 ± 1143.118  ms/op
 ```
 
 ## Installation
